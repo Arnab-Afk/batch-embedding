@@ -1,0 +1,5 @@
+This is a sample text file for testing the embedding API.
+It contains multiple lines of text that will be processed and converted into vector embeddings.
+The embedding API supports both text and PDF files for synchronous processing.
+For larger files, it supports asynchronous job processing with webhooks.
+This is useful for batch processing of documents in production environments.
