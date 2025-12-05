@@ -23,6 +23,10 @@ type Config struct {
 	OpenAIAPIKey         string
 	OpenAIEmbeddingModel string
 
+	// Ollama
+	OllamaURL   string
+	OllamaModel string
+
 	// Limits
 	MaxBatchSize     int
 	MaxChunkSize     int
@@ -56,6 +60,9 @@ func Load() (*Config, error) {
 
 		OpenAIAPIKey:         getEnv("OPENAI_API_KEY", ""),
 		OpenAIEmbeddingModel: getEnv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
+
+		OllamaURL:   getEnv("OLLAMA_URL", "http://localhost:11434"),
+		OllamaModel: getEnv("OLLAMA_MODEL", "nomic-embed-text"),
 
 		MaxBatchSize:     getEnvInt("MAX_BATCH_SIZE", 100),
 		MaxChunkSize:     getEnvInt("MAX_CHUNK_SIZE", 8000),

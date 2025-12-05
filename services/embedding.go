@@ -3,10 +3,16 @@ package services
 import (
 	"batch-embedding-api/config"
 	"batch-embedding-api/models"
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"math"
 	"math/rand"
+	"net/http"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -119,11 +125,20 @@ func (s *EmbeddingService) chunkText(docID, text string, chunkSize int, strategy
 }
 
 // generateEmbedding generates embedding for text
-// This is a mock implementation - replace with actual model call
 func (s *EmbeddingService) generateEmbedding(text string, normalize bool) []float32 {
 	dimension := s.config.EmbeddingDimension
 
 	switch s.config.EmbeddingProvider {
+	case "ollama":
+		emb, err := s.ollamaEmbedding(text)
+		if err != nil {
+			log.Printf("Ollama embedding failed: %v, falling back to mock", err)
+			return s.mockEmbedding(text, dimension, normalize)
+		}
+		if normalize {
+			emb = normalizeL2(emb)
+		}
+		return emb
 	case "openai":
 		// TODO: Implement OpenAI embedding
 		return s.mockEmbedding(text, dimension, normalize)
@@ -132,6 +147,51 @@ func (s *EmbeddingService) generateEmbedding(text string, normalize bool) []floa
 	default:
 		return s.mockEmbedding(text, dimension, normalize)
 	}
+}
+
+// OllamaEmbedRequest represents the request to Ollama API
+type OllamaEmbedRequest struct {
+	Model  string `json:"model"`
+	Prompt string `json:"prompt"`
+}
+
+// OllamaEmbedResponse represents the response from Ollama API
+type OllamaEmbedResponse struct {
+	Embedding []float32 `json:"embedding"`
+}
+
+// ollamaEmbedding calls Ollama API to generate embeddings
+func (s *EmbeddingService) ollamaEmbedding(text string) ([]float32, error) {
+	reqBody := OllamaEmbedRequest{
+		Model:  s.config.OllamaModel,
+		Prompt: text,
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/api/embeddings", s.config.OllamaURL)
+
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Post(url, "application/json", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to call Ollama: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Ollama returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var ollamaResp OllamaEmbedResponse
+	if err := json.NewDecoder(resp.Body).Decode(&ollamaResp); err != nil {
+		return nil, fmt.Errorf("failed to decode Ollama response: %w", err)
+	}
+
+	return ollamaResp.Embedding, nil
 }
 
 // mockEmbedding generates a deterministic mock embedding based on text
